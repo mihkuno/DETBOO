@@ -27,6 +27,12 @@ int main()
     read.close();
 
 
+    // setup darknet neural network to use the YOLOv3 weight and config
+    cv::dnn::Net net = cv::dnn::readNetFromDarknet(YOLO_CONFIG_PATH, YOLO_WEIGHT_PATH);
+    net.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
+    net.setPreferableTarget(cv::dnn::DNN_TARGET_CPU);
+
+
     // setup the image and convert it into a blob format for the neural network to i/o
     cv::Mat image = cv::imread(IMAGE_PATH);
 
@@ -38,10 +44,7 @@ int main()
 
     const cv::Mat INPUT_BLOB = cv::dnn::blobFromImage(image, 1 / 255.0, cv::Size(320, 320), cv::Scalar(), true, false);
 
-    // setup darknet neural network to use the YOLOv3 weight and config
-    cv::dnn::Net net = cv::dnn::readNetFromDarknet(YOLO_CONFIG_PATH, YOLO_WEIGHT_PATH);
-    net.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
-    net.setPreferableTarget(cv::dnn::DNN_TARGET_CPU);
+    // input the blob to darknet
     net.setInput(INPUT_BLOB); 
 
 
@@ -52,9 +55,12 @@ int main()
     std::vector<cv::Mat> OUTPUT_BLOBS;
     net.forward(OUTPUT_BLOBS, OUTPUT_LAYERS);
 
-    std::vector<std::array<int, 4>> coordinates;
-    std::vector<float>              confidence;
-    std::vector<int>                classification;
+    const float CONF_THRESHOLD = 0.5f;
+    const float NMS_THRESHOLD = 0.3f;
+
+    std::vector<cv::Rect> coordinates;
+    std::vector<float>    confidence;
+    std::vector<int>      classification;
 
     // three output layers with varied image scale
     for (cv::Mat &blob : OUTPUT_BLOBS) {
@@ -90,7 +96,7 @@ int main()
                 }
             }
 
-            if (conf >= 0.5) {
+            if (conf >= CONF_THRESHOLD) {
                 // extract the bounding box detection data from the first five elements
                 const float bx = blob.row(rx).at<float>(0);
                 const float by = blob.row(rx).at<float>(1);
@@ -103,7 +109,7 @@ int main()
                 const int y = static_cast<int>((by * image.cols) - h / 2); 
 
                 confidence.push_back(conf);
-                coordinates.push_back({x, y, w, h});
+                coordinates.push_back(cv::Rect(x, y, w, h));
                 classification.push_back(idx);
             }   
         }
@@ -111,17 +117,20 @@ int main()
 
     std::cout << "\n\nDetective BOO is done investigating...\n\n";
 
-    // draw a square around the detection coordinates
-    for (int i = 0; i < coordinates.size(); i++) {
-        const int x = coordinates[i][0];
-        const int y = coordinates[i][1];
-        const int w = coordinates[i][2];
-        const int h = coordinates[i][3];
+    // non-maximum supressions removes duplicate boxes on the same object
+    std::vector<int> indices;
+    cv::dnn::NMSBoxes(coordinates, confidence, CONF_THRESHOLD, NMS_THRESHOLD, indices);
 
-        const int tx = x;
-        const int ty = y;
-        const int bx = x + w;
-        const int by = y + h;
+
+    // draw a square around the detection coordinates
+    for (int &i : indices) {
+        const int w = coordinates[i].width;
+        const int h = coordinates[i].height;
+        
+        const int tx = coordinates[i].x;
+        const int ty = coordinates[i].y;
+        const int bx = tx + w;
+        const int by = tx + h;
 
         const std::string label = LABELS[classification[i]];
         
@@ -129,9 +138,10 @@ int main()
         stream << std::fixed << std::setprecision(2) << confidence[i];
         const std::string conf = stream.str();
 
-        cv::putText(image, label, cv::Point(tx, ty-10), cv::FONT_HERSHEY_DUPLEX, 0.7, cv::Scalar(250, 0, 250), 2);
-        cv::putText(image, conf,  cv::Point(tx+w-20, ty-10), cv::FONT_HERSHEY_DUPLEX, 0.7, cv::Scalar(250, 0, 250), 2);
-        cv::rectangle(image, cv::Point(tx, ty), cv::Point(bx, by), cv::Scalar(250, 0, 250), 3);
+        cv::putText(image, label, cv::Point(tx, ty-25-10),   cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(250, 0, 250), 1);
+        cv::putText(image, conf,  cv::Point(tx+w-35, ty-25-10), cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(250, 0, 250), 1);
+        
+        cv::rectangle(image, cv::Point(tx, ty-25), cv::Point(bx, by+50), cv::Scalar(250, 0, 250), 2);
     }
     
     cv::imshow("Image", image); 
