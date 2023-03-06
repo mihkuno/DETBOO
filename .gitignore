@@ -4,4 +4,4 @@ CMakeFiles/
 CMakeCache.txt
 
 # YOLOv3-320 config and weights
-assets/
+assets/yolov3.*
