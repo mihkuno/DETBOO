@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Object Detection with YOLO and ml5.js</title>
+  <script src="./p5.min.js"></script>
+  <script src="./ml5.min.js"></script>
+  <style>
+    html,
+    body {
+        margin: 0;
+        padding: 0;
+    }
+  </style>
+</head>
+<body>
+  <script>
+    let preload = true;
+    let touched = false;
+    let vid;
+    let coco;
+
+
+    function setup() {
+        createCanvas(windowWidth, windowHeight);
+        
+        vid = createVideo('input.mp4');
+        vid.hide();
+
+        coco = ml5.objectDetector("cocossd", {}, () => {
+            console.log("model loaded");
+            preload = false;
+        });
+    }
+
+    function draw() {
+        background(220);
+        if (preload) {  
+            text("Loading model...", windowWidth/2-15, windowHeight/2);
+        }
+        else if (!touched && !preload) {
+            text("Click to proceed", windowWidth/2-15, windowHeight/2);
+        }
+        else {
+            image(vid, 0, 0);
+            coco.detect(vid, (err, res) => {
+                for (let prop of res) {
+                    console.log(prop);
+                    text(prop.label, prop.x, prop.y - 10);
+                    text(prop.confidence.toFixed(2), prop.x + prop.width - 20, prop.y - 10);
+                    noFill();
+                    stroke(255, 0, 0);
+                    rect(prop.x, prop.y, prop.width, prop.height);
+                }
+            });
+        }
+    }
+
+    function touchStarted(e) {
+        touched = true;
+        vid.play();
+    }
+  </script>
+</body>
+</html>

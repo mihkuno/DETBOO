@@ -1,7 +1,0 @@
-# CMake build directories
-build/
-CMakeFiles/
-CMakeCache.txt
-
-# YOLOv3-320 config and weights
-assets/yolov3.*
