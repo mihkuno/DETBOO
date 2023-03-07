@@ -65,7 +65,7 @@ int main()
     std::vector<cv::String> OUTPUT_LAYERS = net.getUnconnectedOutLayersNames();
 
 
-    const float CONF_THRESHOLD = 0.5f;
+    const float CONF_THRESHOLD = 0.25f;
     const float NMS_THRESHOLD = 0.3f;
 
 
@@ -76,7 +76,7 @@ int main()
     while (cap.read(frame)) {
 
         // convert frame to blob
-        const cv::Mat INPUT_BLOB = cv::dnn::blobFromImage(frame, 1 / 255.0, cv::Size(320, 320), cv::Scalar(), true, false);
+        const cv::Mat INPUT_BLOB = cv::dnn::blobFromImage(frame, 1 / 255.0, cv::Size(416, 416), cv::Scalar(), true, false);
 
         // input the blob to darknet
         net.setInput(INPUT_BLOB); 
@@ -130,9 +130,9 @@ int main()
                     const float bh = blob.row(rx).at<float>(3);
 
                     const int w = static_cast<int>(bw * frame.cols);
-                    const int h = static_cast<int>(bh * frame.cols);
+                    const int h = static_cast<int>(bh * frame.rows);
                     const int x = static_cast<int>((bx * frame.cols) - w / 2);
-                    const int y = static_cast<int>((by * frame.cols) - h / 2); 
+                    const int y = static_cast<int>((by * frame.rows) - h / 2); 
 
                     confidence.push_back(conf);
                     coordinates.push_back(cv::Rect(x, y, w, h));
@@ -164,10 +164,10 @@ int main()
             stream << std::fixed << std::setprecision(2) << confidence[i];
             const std::string conf = stream.str();
 
-            cv::putText(frame, label, cv::Point(tx, ty-25-10),   cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(250, 0, 250), 1);
-            cv::putText(frame, conf,  cv::Point(tx+w-35, ty-25-10), cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(250, 0, 250), 1);
+            cv::putText(frame, label, cv::Point(tx, ty-10),   cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(250, 0, 250), 1);
+            cv::putText(frame, conf,  cv::Point(tx+w-35, ty-10), cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(250, 0, 250), 1);
             
-            cv::rectangle(frame, cv::Point(tx, ty-25), cv::Point(bx, by+50), cv::Scalar(250, 0, 250), 2);
+            cv::rectangle(frame, coordinates[i], cv::Scalar(250, 0, 250), 2);
         }
 
 
@@ -191,5 +191,6 @@ int main()
     cap.release();
     writer.release();
 
-    return 0;
+    return 0; 
 }
+ 
