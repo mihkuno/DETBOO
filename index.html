@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <title>Mediapipe Object Detection</title>
+</head>
+<body>
+    <div id="p5"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js" integrity="sha512-3RlxD1bW34eFKPwj9gUXEWtdSMC59QqIqHnD8O/NoTwSJhgxRizdcFVQhUMFyTp5RwLTDL0Lbcqtl8b7bFAzog==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script type="module">
+        import vision from "https://cdn.skypack.dev/@mediapipe/tasks-vision@latest";
+        
+        const { FilesetResolver, ObjectDetector } = vision;
+
+        let objectDetector;
+        let detections = [];
+        let image;
+
+        async function initializeObjectDetector() {
+            const vision = await FilesetResolver.forVisionTasks(
+                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+            );
+            
+            objectDetector = await ObjectDetector.createFromOptions(vision, {
+                baseOptions: {
+                modelAssetPath: `https://storage.googleapis.com/mediapipe-tasks/object_detector/efficientdet_lite0_uint8.tflite`},
+                scoreThreshold: 0.5,
+                runningMode: "IMAGE"
+            });
+
+            // const image = document.getElementById("my-image");
+            // objectDetector.setInputImage(image.elt);
+
+            // const result = await objectDetector.compute();
+            // detections = result.detections;
+
+
+            new p5((p5) => {
+
+                const img_x = 100;
+                const img_y = 100;
+    
+                p5.setup = () => {
+                    p5.createCanvas(p5.windowWidth, p5.windowHeight);
+                    
+                    image = p5.createImg("catto1.jpg", () => {
+                        detections = objectDetector.detect(image.elt);
+                    });
+
+                    image.hide();
+                }
+
+                p5.draw = () => {
+                    p5.background(200);
+                    p5.image(image, img_x, img_y);
+
+                    if (detections.length > 0) {
+                        for (let obj of detections) {
+                            const x = obj.boundingBox.originX;
+                            const y = obj.boundingBox.originY;
+                            const w = obj.boundingBox.width;
+                            const h = obj.boundingBox.height;
+                            const label = obj.categories[0].categoryName;
+                            const score = obj.categories[0].score.toFixed(2);
+
+                            p5.noFill();
+                            p5.stroke(0, 130, 250);
+                            
+                            p5.textSize(15);
+                            p5.strokeWeight(1);
+                            p5.text(label, x+img_x+5, y+img_y-8);
+                            p5.text(score, x+img_x+w-35, y+img_y-8);
+
+                            p5.strokeWeight(2);
+                            p5.rect(x+img_x, y+img_y-25, w, 25);
+                            p5.rect(x+img_x, y+img_y, w, h);
+                        }
+                    }
+                }
+            });
+        }
+
+        initializeObjectDetector();
+
+    </script> 
+</body>
+</html>
