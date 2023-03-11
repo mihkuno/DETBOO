@@ -4,83 +4,123 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <title>Mediapipe Object Detection</title>
+    <title>Box On Image</title>
+
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+        }
+    </style>
 </head>
 <body>
-    <div id="p5"></div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js" integrity="sha512-3RlxD1bW34eFKPwj9gUXEWtdSMC59QqIqHnD8O/NoTwSJhgxRizdcFVQhUMFyTp5RwLTDL0Lbcqtl8b7bFAzog==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <div id="container">
+        <!-- <img src="assets/catto1.jpg" id="image" alt="cat"> -->
+        <video src="assets/input.mp4" id="video" autoplay></video>
+    </div>
+
     <script type="module">
-        import vision from "https://cdn.skypack.dev/@mediapipe/tasks-vision@latest";
+        import vision from "./node_modules/@mediapipe/tasks-vision/vision_bundle.js";
         
-        const { FilesetResolver, ObjectDetector } = vision;
+        const { FilesetResolver, ObjectDetector } = vision;        
 
         let objectDetector;
-        let detections = [];
-        let image;
+        let detections = [];        
 
+        // Load the model and set options
         async function initializeObjectDetector() {
             const vision = await FilesetResolver.forVisionTasks(
-                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+                "./node_modules/@mediapipe/tasks-vision/wasm"
             );
-            
+
             objectDetector = await ObjectDetector.createFromOptions(vision, {
                 baseOptions: {
-                modelAssetPath: `https://storage.googleapis.com/mediapipe-tasks/object_detector/efficientdet_lite0_uint8.tflite`},
-                scoreThreshold: 0.5,
-                runningMode: "IMAGE"
+                    modelAssetPath: "./models/efficientdet_lite0_uint8.tflite",
+                },
+                scoreThreshold: 0.3,
+                runningMode: "VIDEO",
             });
 
-            // const image = document.getElementById("my-image");
-            // objectDetector.setInputImage(image.elt);
+            renderLoop();
+        }
 
-            // const result = await objectDetector.compute();
-            // detections = result.detections;
+        let lastVideoTime = -1;
+        function renderLoop() {
+            const video = document.getElementById("video");
+
+            if (video.currentTime !== lastVideoTime) {
+                const output = objectDetector.detectForVideo(video, Date.now());
+                processResults(output);
+                lastVideoTime = video.currentTime;
+            }
+
+            requestAnimationFrame(() => renderLoop() );
+        }
+
+        function processResults(output) {
+            const container = document.getElementById("container");
+
+            for (let d of detections) {
+                container.removeChild(d);
+            }
+
+            detections = [];
+
+            for (let o of output) {
+                const x = o.boundingBox.originX;
+                const y = o.boundingBox.originY;
+                const w = o.boundingBox.width;
+                const h = o.boundingBox.height;
+                const sc = o.categories[0].score;
+                const lb = o.categories[0].categoryName;
+
+                const box = boundingBox(x, y, w, h, lb, sc);
+                detections.push(box);
+            }
+
+            console.log(detections);
+            container.append(...detections);
+        }
 
 
-            new p5((p5) => {
+        function boundingBox(x, y, w, h, lb, sc) {
 
-                const img_x = 100;
-                const img_y = 100;
-    
-                p5.setup = () => {
-                    p5.createCanvas(p5.windowWidth, p5.windowHeight);
-                    
-                    image = p5.createImg("catto1.jpg", () => {
-                        detections = objectDetector.detect(image.elt);
-                    });
+            if (!boundingBox.static) boundingBox.static = 0;
 
-                    image.hide();
-                }
+            const box = document.createElement("div");
+            box.id = `object-${boundingBox.static++}`;
+            box.style = `
+                position: absolute;
+                top: ${y-20}px;
+                left: ${x}px;
+                width: ${w}px;
+                height: ${h+20}px;
+                border: 4px solid #7158e2;
+            `;
 
-                p5.draw = () => {
-                    p5.background(200);
-                    p5.image(image, img_x, img_y);
+            const info = document.createElement("div");
+            info.style = `
+                display: flex;
+                justify-content: space-between;
+                border-bottom: 4px solid #7158e2;
+                background-color: #7158e2;
+                padding: 1px 3px;
+                color: #d2dae2;
+                font-family: Segoe Ui;
+                font-size: 14px;
+            `;
 
-                    if (detections.length > 0) {
-                        for (let obj of detections) {
-                            const x = obj.boundingBox.originX;
-                            const y = obj.boundingBox.originY;
-                            const w = obj.boundingBox.width;
-                            const h = obj.boundingBox.height;
-                            const label = obj.categories[0].categoryName;
-                            const score = obj.categories[0].score.toFixed(2);
+            const label = document.createElement('span');
+            label.append(lb);
 
-                            p5.noFill();
-                            p5.stroke(0, 130, 250);
-                            
-                            p5.textSize(15);
-                            p5.strokeWeight(1);
-                            p5.text(label, x+img_x+5, y+img_y-8);
-                            p5.text(score, x+img_x+w-35, y+img_y-8);
+            const score = document.createElement('span');
+            score.append(`${Math.ceil(sc * 100)}%`);
 
-                            p5.strokeWeight(2);
-                            p5.rect(x+img_x, y+img_y-25, w, 25);
-                            p5.rect(x+img_x, y+img_y, w, h);
-                        }
-                    }
-                }
-            });
+            info.append(...[label, score]);
+            box.append(info);
+
+            return box;
         }
 
         initializeObjectDetector();
